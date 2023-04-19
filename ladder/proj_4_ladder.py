@@ -9,12 +9,12 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 ##--------------Creating Calibration Matricies from Text File-----------------------##
-K_0 = np.array([[1733.74, 0, 792.27],[0, 1733.74, 541.89], [0,0,1]])
-K_1 = np.array([[1733.74, 0, 792.27],[0, 1733.74, 541.89], [0,0,1]])
+K_0 = np.array([[1734.16, 0, 333.49],[0, 1734.16, 958.05], [0,0,1]])
+K_1 = np.array([[1734.16, 0, 333.49],[0, 1734.16, 958.05], [0,0,1]])
 
 ##------------------------------Read Images-----------------------------------------##
-OG_Image_0 = cv.imread('/home/brendanneal12/Documents/GitHub/ENPM673_Project_4/chess/im0.png')
-OG_Image_1 = cv.imread('/home/brendanneal12/Documents/GitHub/ENPM673_Project_4/chess/im1.png')
+OG_Image_0 = cv.imread('/home/brendanneal12/Documents/GitHub/ENPM673_Project_4/ladder/im0.png')
+OG_Image_1 = cv.imread('/home/brendanneal12/Documents/GitHub/ENPM673_Project_4/ladder/im1.png')
 
 
 ##---------------------------Converting Images to Gray------------------------------##
