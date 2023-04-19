@@ -7,6 +7,32 @@
 import cv2 as cv
 import numpy as np
 from matplotlib import pyplot as plt
+##========================================Function Definitions=======================================##
+'''Below you will find function definitions in order to accomplish the Stero Vision Tasks'''
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+##=========================================="Main" Function==========================================##
+''' Here is the Image Processing Pipeline and Application of Functions to Solve Stereo Vision'''
 
 ##--------------Creating Calibration Matricies from Text File-----------------------##
 K_0 = np.array([[1734.16, 0, 333.49],[0, 1734.16, 958.05], [0,0,1]])
