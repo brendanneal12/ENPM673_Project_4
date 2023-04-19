@@ -83,7 +83,7 @@ for match in IM1_IM2_Matches:
         (x2_IM12, y2_IM12) = keypoints2[match.trainIdx].pt
         Corr_List_IM1_IM2.append([x1_IM12, y1_IM12, x2_IM12, y2_IM12])
 
-Corr_Matrix_IM1_IM2 = np.matrix(Corr_List_IM1_IM2)
+Corr_Matrix_IM1_IM2 = np.array(Corr_List_IM1_IM2).reshape(-1, 4)
 
 ##-------------------------------Drawing Matched Features------------------------------##
 Match1_2_IMG = cv.drawMatches(G_Image0,keypoints1,G_Image1,keypoints2,BestMatches,None,flags=cv.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)

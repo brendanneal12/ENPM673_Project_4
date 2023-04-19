@@ -11,6 +11,15 @@ from matplotlib import pyplot as plt
 ##========================================Function Definitions=======================================##
 '''Below you will find function definitions in order to accomplish the Stero Vision Tasks'''
 
+##--------------------------Defining my "Calculate F" Function------------------------##
+''' You need a minimum of 8 points to estimate fundemental matrix, and since we are 
+using RANSAC to calculate this, I am using logic to make some assumptions'''
+
+
+def GetFundementalMatrix(Matched_Feature_List):
+    FirstPoints = Matched_Feature_List[:,0:2]
+    SecondPoints = Matched_Feature_List[:,2:4]
+
 
 
 
@@ -83,7 +92,7 @@ for match in IM1_IM2_Matches:
         (x2_IM12, y2_IM12) = keypoints2[match.trainIdx].pt
         Corr_List_IM1_IM2.append([x1_IM12, y1_IM12, x2_IM12, y2_IM12])
 
-Corr_Matrix_IM1_IM2 = np.matrix(Corr_List_IM1_IM2)
+Corr_Matrix_IM1_IM2 = np.array(Corr_List_IM1_IM2).reshape(-1, 4)
 
 ##-------------------------------Drawing Matched Features------------------------------##
 Match1_2_IMG = cv.drawMatches(G_Image0,keypoints1,G_Image1,keypoints2,BestMatches,None,flags=cv.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
