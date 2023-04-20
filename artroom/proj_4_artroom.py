@@ -115,8 +115,7 @@ def Calculate_F_RANSAC(Feature_List):
             iter_max = math.log(1-prob_des)/math.log(1-(1-prob_outlier)**8) #Recalculate the new number of max iteration number
             print("Max Iterations:", iter_max, "Current Iteration:", iteration, "Current Max Inlier Count:", max_inliers)
             iteration+=1 #Increase Iteration Number
-
-        return best_model
+    return best_model
 
         
 
