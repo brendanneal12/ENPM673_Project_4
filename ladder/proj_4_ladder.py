@@ -345,7 +345,7 @@ def SolveCorrespondance(RectIM1, RectIM2):
                     r = GrayIM2[(i-block):(i+block), (j-f-block):(j-f+block)]
                     ssd[f] = np.sum((l[:,:] - r[:,:])**2)
                disparity_image[i,j] = np.argmin(ssd)
-          print("Solving for SSD. Please be patient. Current Iteration:", i)
+          #print("Solving for SSD. Please be patient. Current Iteration:", i)
 
      stop = timeit.default_timer()
      print("That took ", stop-start, "seconds to complete.")
