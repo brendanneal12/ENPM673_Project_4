@@ -247,12 +247,6 @@ def ResizeImages(Images):
 
      return resized_images
 
-
-
-
-
-
-
 def GenerateEpipolarLines(FirstSetPoints, SecondSetPoints, F, FirstImage, SecondImage, rectified = False):
      Lines1 = []
      Lines2 = []
@@ -328,6 +322,44 @@ def SolveRectification(Image1, Image2, FeatureSet1, FeatureSet2, F):
      F_Rect = np.dot(H2_T_Inverse, np.dot(F, H1_Inverse))
 
      return Image1_Rect, Image2_Rect, FeatureSet1_Rect, FeatureSet2_Rect, F_Rect
+
+##----------------------Defining my Correspondance Pipeline-----------------------------------##
+def SolveCorrespondance(RectIM1, RectIM2):
+     GrayIM1 = cv.cvtColor(RectIM1, cv.COLOR_BGR2GRAY)
+     GrayIM2 = cv.cvtColor(RectIM2, cv.COLOR_BGR2GRAY)
+     window_size = 15
+     block = 5
+
+     IMHeight, IMWidth = GrayIM1.shape
+     disparity_image = np.zeros(shape = (IMHeight, IMWidth))
+
+
+
+     start = timeit.default_timer()
+
+     for i in range(block, GrayIM1.shape[0] - block - 1):
+          for j in range(block + window_size, GrayIM1.shape[1] - block - 1):
+               ssd = np.empty([window_size,1])
+               l = GrayIM1[(i-block):(i+block), (j-block):(j+block)]
+               for f in range(0,window_size):
+                    r = GrayIM2[(i-block):(i+block), (j-f-block):(j-f+block)]
+                    ssd[f] = np.sum((l[:,:] - r[:,:])**2)
+               disparity_image[i,j] = np.argmin(ssd)
+          print("Solving for SSD. Please be patient. Current Iteration:", i)
+
+     stop = timeit.default_timer()
+     print("That took ", stop-start, "seconds to complete.")
+     return disparity_image, ssd
+
+##----------------------Defining my Depth Computation Pipeline-----------------------------------##
+def GenerateDepthInfo(RectImage1, Disparity_Info):
+     GrayIM1 = cv.cvtColor(RectImage1, cv.COLOR_BGR2GRAY)
+     depth_info = np.zeros(shape = GrayIM1.shape).astype(float)
+     depth_info[Disparity_Info > 0] = (focal_length*baseline) / (Disparity_Info[Disparity_Info > 0])
+
+     img_depth = ((depth_info/depth_info.max())*255).astype(np.uint8)
+
+     return img_depth
 
 
 ##=========================================="Main" Function==========================================##
@@ -427,5 +459,31 @@ Image1_Rect, Image2_Rect, FeatureSet1_Rect, FeatureSet2_Rect, F_Rect = SolveRect
 
 Lines1_Rect, Lines2_Rect, Rec = GenerateEpipolarLines(FeatureSet1_Rect, FeatureSet2_Rect, F_Rect, Image1_Rect, Image2_Rect, True)
 plt.imshow(Rec)
+plt.show()
+
+##----------------------------Solving Correspondance and Disparity-----------------------------##
+
+print("Solving for SSD, please be patient. It can take upwards of 5 min.")
+Disp_Image, SSD = SolveCorrespondance(Image1_Rect, Image2_Rect)
+
+show_disp = ((Disp_Image/Disp_Image.max())*255).astype(np.uint8)
+plt.imshow(cv.cvtColor(show_disp,cv.COLOR_BGR2RGB))
+plt.show()
+
+colormap = plt.get_cmap('inferno')
+img_heatmap = (colormap(show_disp) * 2**16).astype(np.uint16)[:,:,:3]
+img_heatmap = cv.cvtColor(img_heatmap, cv.COLOR_BGR2RGB)
+plt.imshow(img_heatmap)
+plt.show()
+
+##------------------------------Compute Depth Image------------------------------------------##
+DepthImage = GenerateDepthInfo(Image1_Rect,show_disp)
+plt.imshow(cv.cvtColor(DepthImage, cv.COLOR_BGR2RGB))
+plt.show()
+
+colormap = plt.get_cmap('inferno')
+img_heatmap_depth = (colormap(DepthImage) * 2**16).astype(np.uint16)[:,:,:3]
+img_heatmap_depth = cv.cvtColor(img_heatmap_depth, cv.COLOR_BGR2RGB)
+plt.imshow(img_heatmap_depth)
 plt.show()
 
