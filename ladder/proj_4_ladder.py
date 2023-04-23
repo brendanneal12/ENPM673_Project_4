@@ -1,15 +1,18 @@
 #Brendan Neal
 #ENPM673 Project 4 - Stereo Vision
 
-#Ladder Code
+##Artroom code
 
 ##----------------Importing Libraries-----------------##
 import cv2 as cv
 import numpy as np
 from matplotlib import pyplot as plt
 import math
+import timeit
+
 ##========================================Function Definitions=======================================##
 '''Below you will find function definitions in order to accomplish the Stero Vision Tasks'''
+
 ##----------------------Defining my "Calculate F" Function Pipeline------------------------##
 ''' You need a minimum of 8 points to estimate fundemental matrix, and since we are 
 using RANSAC to calculate this, I am using logic to make some assumptions'''
@@ -81,7 +84,7 @@ def CalcRANSACError(IterF, AllFeatures):
         error_raw = np.dot(X1_Temp, np.dot(IterF, X2_Temp))
         error = np.abs(error_raw)
         error_array.append(error)
-        if error < 0.5:
+        if error < 0.03:
              selected_feature_idxs.append(np.where(AllFeatures == feature)[0][0])
 
      return error_array, selected_feature_idxs
@@ -95,7 +98,7 @@ def Calculate_F_RANSAC(Feature_List):
     prob_des = 0.95 #I wanta  95% Accuracy Rate
     n = len(Feature_List) #Init N
     inlier_count = 0 #Init Inlier Count
-    threshold = 0.5
+    threshold = 0.03
 
     while iteration < iter_max: #While iteration number is less than calculated max
         num_rows = Feature_List.shape[0]
@@ -219,6 +222,30 @@ def Determine_R_T(Points3D, RotMatrices, TransMatrices):
 
      return True_Rot, True_Trans
 
+##----------------------Defining my Rectification Pipeline-----------------------------------##
+
+def GenerateXPoint(Line,Y):
+     x = -(Line[1]*Y + Line[2])/Line[0]
+     return x
+
+def ResizeImages(Images):
+     images = Images.copy()
+     sizes = []
+     for image in images:
+          X,Y,CH = image.shape
+          sizes.append([X,Y,CH])
+
+     sizes = np.array(sizes)
+     x_goal,y_goal,_ =  np.max(sizes, axis = 0)
+
+     resized_images = []
+
+     for i, image in enumerate(images):
+          resized_image = np.zeros((x_goal,y_goal, sizes[i,2]), np.uint8)
+          resized_image[0:sizes[i,0], 0:sizes[i,1], 0:sizes[i,2]] = image
+          resized_images.append(resized_image)
+
+     return resized_images
 
 
 
@@ -226,26 +253,90 @@ def Determine_R_T(Points3D, RotMatrices, TransMatrices):
 
 
 
+def GenerateEpipolarLines(FirstSetPoints, SecondSetPoints, F, FirstImage, SecondImage, rectified = False):
+     Lines1 = []
+     Lines2 = []
+
+     EpiImage1 = FirstImage.copy()
+     EpiImage2 = SecondImage.copy()
+
+     for i in range(FirstSetPoints.shape[0]):
+          X1 = np.array([FirstSetPoints[i,0],FirstSetPoints[i,1],1]).reshape(3,1)
+          X2 = np.array([SecondSetPoints[i,0],SecondSetPoints[i,1], 1]).reshape(3,1)
 
 
 
+          Line2 = np.dot(F, X1)
+          Lines2.append(Line2)
+
+          Line1 = np.dot(F.T, X2)
+          Lines1.append(Line1)
+
+          if not rectified:
+               Y2_Minimum = 0
+               Y2_Max = SecondImage.shape[0]
+               X2_Minimum = GenerateXPoint(Line2, Y2_Minimum)
+               X2_Max = GenerateXPoint(Line2, Y2_Max)
+
+               Y1_Minimum = 0
+               Y1_Max = FirstImage.shape[0]
+               X1_Minimum = GenerateXPoint(Line1, Y1_Minimum)
+               X1_Max = GenerateXPoint(Line1, Y1_Max)
+
+          else:
+               X2_Minimum = 0
+               X2_Max = SecondImage.shape[1] - 1
+               Y2_Minimum = -Line2[2]/Line2[1]
+               Y2_Max = -Line2[2]/Line2[1]
+
+               X1_Minimum = 0
+               X1_Max = FirstImage.shape[1] - 1
+               Y1_Minimum = -Line1[2]/Line1[1]
+               Y1_Max = -Line1[2]/Line1[1]
 
 
+          cv.circle(EpiImage2, (int(SecondSetPoints[i,0]),int(SecondSetPoints[i,1])), 8, (255,0,0), -1)
+          EpiImage2 = cv.line(EpiImage2, (int(X2_Minimum), int(Y2_Minimum)), (int(X2_Max), int(Y2_Max)), (255,0,int(i*2.55)),2)
 
+          cv.circle(EpiImage1, (int(FirstSetPoints[i,0]),int(FirstSetPoints[i,1])), 8, (255,0,0), -1)
+          EpiImage1 = cv.line(EpiImage1, (int(X1_Minimum), int(Y1_Minimum)), (int(X1_Max), int(Y1_Max)), (255,0,int(i*2.55)),2)
 
+     Image1, Image2 = ResizeImages([EpiImage1, EpiImage2])
 
+     concat = np.concatenate((Image1, Image2), axis = 1)
+     concat = cv.resize(concat, (1920,660))
 
+     return Lines1, Lines2, concat
 
+def SolveRectification(Image1, Image2, FeatureSet1, FeatureSet2, F):
+     imheight1, imwidth1 = Image1.shape[:2]
+     imheight2, imwidth2 = Image2.shape[:2]
 
+     _, H1, H2 = cv.stereoRectifyUncalibrated(np.float32(FeatureSet1), np.float32(FeatureSet2), F, imgSize=(imheight1,imwidth1))
+     print("\n H1 is: \n", H1)
+     print("\n H2 is: \n", H2)
 
+     Image1_Rect = cv.warpPerspective(Image1, H1, (imheight1,imwidth1))
+     Image2_Rect = cv.warpPerspective(Image2, H2, (imheight2, imwidth2))
+
+     FeatureSet1_Rect = cv.perspectiveTransform(FeatureSet1.reshape(-1,1,2),H1).reshape(-1,2)
+     FeatureSet2_Rect = cv.perspectiveTransform(FeatureSet2.reshape(-1,1,2),H2).reshape(-1,2)
+
+     H2_T_Inverse = np.linalg.inv(H2.T)
+     H1_Inverse = np.linalg.inv(H1)
+
+     F_Rect = np.dot(H2_T_Inverse, np.dot(F, H1_Inverse))
+
+     return Image1_Rect, Image2_Rect, FeatureSet1_Rect, FeatureSet2_Rect, F_Rect
 
 
 ##=========================================="Main" Function==========================================##
 ''' Here is the Image Processing Pipeline and Application of Functions to Solve Stereo Vision'''
-
 ##--------------Creating Calibration Matricies from Text File-----------------------##
 K_0 = np.array([[1734.16, 0, 333.49],[0, 1734.16, 958.05], [0,0,1]])
 K_1 = np.array([[1734.16, 0, 333.49],[0, 1734.16, 958.05], [0,0,1]])
+focal_length = K_0[0][0]
+baseline=228.38
 
 ##------------------------------Read Images-----------------------------------------##
 OG_Image_0 = cv.imread('/home/brendanneal12/Documents/GitHub/ENPM673_Project_4/ladder/im0.png')
@@ -287,7 +378,7 @@ BestMatches = matches[0:100]
 
 Corr_List_IM1_IM2 = []
 
-for match in IM1_IM2_Matches:
+for match in BestMatches:
         (x1_IM12, y1_IM12) = keypoints1[match.queryIdx].pt
         (x2_IM12, y2_IM12) = keypoints2[match.trainIdx].pt
         Corr_List_IM1_IM2.append([x1_IM12, y1_IM12, x2_IM12, y2_IM12])
@@ -320,3 +411,20 @@ Points_3d = Generate3dPoints(K_0, K_1, BestFeatures, Rot_Matrices, Trans_Matrice
 R,T = Determine_R_T(Points_3d, Rot_Matrices, Trans_Matrices)
 print("\n The estimated Rotation Matrix is:\n", R)
 print("\n The estimated Translation Matrix is:\n", T)
+
+
+##----------------------------Drawing Epipolar Lines-----------------------------##
+
+FirstSet = BestFeatures[:,0:2]
+SecondSet = BestFeatures[:,2:4]
+
+Lines1, Lines2, unrec = GenerateEpipolarLines(FirstSet, SecondSet, F_Matrix, OG_Image_0, OG_Image_1, False)
+plt.imshow(unrec)
+plt.show()
+
+Image1_Rect, Image2_Rect, FeatureSet1_Rect, FeatureSet2_Rect, F_Rect = SolveRectification(OG_Image_0, OG_Image_1, FirstSet, SecondSet,F_Matrix)
+
+Lines1_Rect, Lines2_Rect, Rec = GenerateEpipolarLines(FeatureSet1_Rect, FeatureSet2_Rect, F_Rect, Image1_Rect, Image2_Rect, True)
+plt.imshow(Rec)
+plt.show()
+
