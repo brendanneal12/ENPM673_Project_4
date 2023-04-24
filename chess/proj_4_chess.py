@@ -17,6 +17,8 @@ import timeit
 ''' You need a minimum of 8 points to estimate fundemental matrix, and since we are 
 using RANSAC to calculate this, I am using logic to make some assumptions'''
 
+#--------------Defining my "Normalize Matrix" Function-----------------##
+''' This function will normalize a matrix (dividing by the last element)'''
 def normalize_matrix(matrix):
       matrix_bar = np.mean(matrix, axis = 0)
       ubar = matrix_bar[0]
@@ -35,21 +37,22 @@ def normalize_matrix(matrix):
 
       return normalized_matrix, T
 
-
+#-------------Defining my Calculate Fundamental Matrix Function-------------##
+'''This function will calculate the fundamental matrix using SVD.'''
 def GetFundementalMatrix(Matched_Feature_List):
     norm = True
-    FirstPoints = Matched_Feature_List[:,0:2]
+    FirstPoints = Matched_Feature_List[:,0:2] #Get Points
     SecondPoints = Matched_Feature_List[:,2:4]
 
     if FirstPoints.shape[0] > 7:
         if norm == True:
-            FirstPoints_Norm, T1 = normalize_matrix(FirstPoints)
+            FirstPoints_Norm, T1 = normalize_matrix(FirstPoints) #Make points Homogeneous
             SecondPoints_Norm, T2 = normalize_matrix(SecondPoints)
         else:
             FirstPoints_Norm = FirstPoints
             SecondPoints_Norm = SecondPoints
 
-        Amatrix = np.zeros((len(FirstPoints_Norm),9))
+        Amatrix = np.zeros((len(FirstPoints_Norm),9)) #Formulate the A matrix
         for i in range(0, len(FirstPoints_Norm)):
              X1 = FirstPoints_Norm[i][0]
              Y1 = FirstPoints_Norm[i][1]
@@ -57,18 +60,18 @@ def GetFundementalMatrix(Matched_Feature_List):
              Y2 = SecondPoints_Norm[i][1]
              Amatrix[i] = np.array([X1*X2, X2*Y1,X2,Y2*X1,Y2*Y1,Y2,X1,Y1,1])
 
-        u,s,v_t = np.linalg.svd(Amatrix, full_matrices=True)
+        u,s,v_t = np.linalg.svd(Amatrix, full_matrices=True) #Solve SVD
 
-        F = v_t.T[:,-1]
-        F = F.reshape(3,3)
+        F = v_t.T[:,-1] #Take last element
+        F = F.reshape(3,3) #Reshape
 
-        U,S,V_T = np.linalg.svd(F)
+        U,S,V_T = np.linalg.svd(F) #SVD
         S = np.diag(S)
         S[2,2] = 0
         F = np.dot(U, np.dot(S,V_T))
 
         if norm:
-             F = np.dot(T2.T,np.dot(F,T1))
+             F = np.dot(T2.T,np.dot(F,T1)) #Enforece Rank-2 Constraint
         return F
     else:
          return None
@@ -81,11 +84,11 @@ def CalcRANSACError(IterF, AllFeatures):
         X2 = feature[2:4]
         X1_Temp = np.array([X1[0], X1[1], 1]).T
         X2_Temp = np.array([X2[0], X2[1], 1])
-        error_raw = np.dot(X1_Temp, np.dot(IterF, X2_Temp))
+        error_raw = np.dot(X1_Temp, np.dot(IterF, X2_Temp)) #Error stems from Violating X1FX2 = 0
         error = np.abs(error_raw)
         error_array.append(error)
         if error < 0.03:
-             selected_feature_idxs.append(np.where(AllFeatures == feature)[0][0])
+             selected_feature_idxs.append(np.where(AllFeatures == feature)[0][0]) #Add selected features to a list for later.
 
      return error_array, selected_feature_idxs
 
@@ -98,16 +101,16 @@ def Calculate_F_RANSAC(Feature_List):
     prob_des = 0.95 #I wanta  95% Accuracy Rate
     n = len(Feature_List) #Init N
     inlier_count = 0 #Init Inlier Count
-    threshold = 0.03
+    threshold = 0.03 #Error Threshold
 
     while iteration < iter_max: #While iteration number is less than calculated max
         num_rows = Feature_List.shape[0]
-        rand_idxs = np.random.choice(num_rows,size = 8)
-        Feature_Sample = Feature_List[rand_idxs,:]
-        iteration_model = GetFundementalMatrix(Feature_Sample)
-        error, feature_idxs = CalcRANSACError(iteration_model, Feature_List)
+        rand_idxs = np.random.choice(num_rows,size = 8) #Select a sample of size 8
+        Feature_Sample = Feature_List[rand_idxs,:] #Index Sample from Feature List
+        iteration_model = GetFundementalMatrix(Feature_Sample) #Calculate the iteration Fundamental matrix
+        error, feature_idxs = CalcRANSACError(iteration_model, Feature_List) #Calculate the Error of the Iteration Model
         error = np.array(error)
-        inlier_count = np.count_nonzero(error < threshold)
+        inlier_count = np.count_nonzero(error < threshold) #Count inliers
 
         if inlier_count > max_inliers: #If the number of inliers is greater than the current max:
             max_inliers = inlier_count #Update the Max Inliers
@@ -129,7 +132,7 @@ def Calculate_F_RANSAC(Feature_List):
 ##----------------------Defining my "Calculate E" Function-----------------------------------##
 
 def Calc_E_Matrix(K1, K2, F):
-     E_Temp = K2.T.dot(F).dot(K1)
+     E_Temp = K2.T.dot(F).dot(K1) #Calculate E using SVD
      u, s, v = np.linalg.svd(E_Temp)
      s = [1,1,0]
      E = np.dot(u,np.dot(np.diag(s),v))
@@ -139,21 +142,21 @@ def Calc_E_Matrix(K1, K2, F):
 
 def Decompose_E_Matrix(E):
      u, s, v = np.linalg.svd(E)
-     W_Matrix = np.array([[0,-1,0],[1,0,0],[0,0,1]])
+     W_Matrix = np.array([[0,-1,0],[1,0,0],[0,0,1]]) #Set up W matrix
 
      Rot_Array = []
      Trans_Array = []
-
+     #Formulate all 4 possible rotation matrices
      Rot_Array.append(np.dot(u,np.dot(W_Matrix,v)))
      Rot_Array.append(np.dot(u,np.dot(W_Matrix,v)))
      Rot_Array.append(np.dot(u,np.dot(W_Matrix.T,v)))
      Rot_Array.append(np.dot(u,np.dot(W_Matrix.T,v)))
-
+     #Formulate all 4 possible translation matrices
      Trans_Array.append(u[:,2])
      Trans_Array.append(-u[:,2])
      Trans_Array.append(u[:,2])
      Trans_Array.append(-u[:,2])
-
+     #Correct rotation and translation if det < 0
      for i in range(4):
           if (np.linalg.det(Rot_Array[i]) < 0):
                Rot_Array[i] = -Rot_Array[i]
@@ -167,32 +170,32 @@ def Generate3dPoints(K1,K2,bestfeatures, TestRotMatrices, TestTransMatrices):
      TestTrans1 = np.zeros((3,1))
      I = np.identity(3)
 
-     FirstPoint = np.dot(K1,np.dot(TestRot1,np.hstack((I,-TestTrans1.reshape(3,1)))))
+     FirstPoint = np.dot(K1,np.dot(TestRot1,np.hstack((I,-TestTrans1.reshape(3,1))))) #Generate 1st Sample 3D Points
 
      for i in range(len(TestTransMatrices)):
           X1 = bestfeatures[:,0:2].T
           X2 = bestfeatures[:,2:4].T
 
-          SecondPoint = np.dot(K2,np.dot(TestRotMatrices[i],np.hstack((I,-TestTransMatrices[i].reshape(3,1)))))
+          SecondPoint = np.dot(K2,np.dot(TestRotMatrices[i],np.hstack((I,-TestTransMatrices[i].reshape(3,1))))) #Generate 2nd Sample 3D Point
 
-          Point3D = cv.triangulatePoints(FirstPoint, SecondPoint, X1, X2)
-          Points_3D.append(Point3D)
+          Point3D = cv.triangulatePoints(FirstPoint, SecondPoint, X1, X2) #Traingulate the Point
+          Points_3D.append(Point3D) 
 
      return Points_3D
 
 def countPositive(Points3d, RotMatrices, TransMatrices):
      I = np.identity(3)
-     P_Matrix = np.dot(RotMatrices,np.hstack((I,-TransMatrices.reshape(3,1))))
-     P_Matrix = np.vstack((P_Matrix, np.array([0,0,0,1]).reshape(1,4)))
+     P_Matrix = np.dot(RotMatrices,np.hstack((I,-TransMatrices.reshape(3,1)))) #Form Projection Matrix
+     P_Matrix = np.vstack((P_Matrix, np.array([0,0,0,1]).reshape(1,4))) #Add 0 0 0 1
      num_positive = 0
 
-     for i in range(Points3d.shape[1]):
+     for i in range(Points3d.shape[1]): #Project a sample Z and check if positive.
           Xtest = Points3d[:,i]
           Xtest = Xtest.reshape(4,1)
           XC = np.dot(P_Matrix,Xtest)
           XC = XC / XC.item(3)
           Z = XC[2]
-          if Z > 0:
+          if Z > 0: 
                num_positive += 1
 
      return num_positive
@@ -203,7 +206,7 @@ def Determine_R_T(Points3D, RotMatrices, TransMatrices):
 
      Rot1 = np.identity(3)
      Trans1 = np.zeros((3,1))
-     for i in range(len(Points3D)):
+     for i in range(len(Points3D)): #Count positive Zs for each of the potential solutions
           TestPoint = Points3D[i]
           NormTestPoint = TestPoint/TestPoint[3,:]
 
@@ -215,7 +218,7 @@ def Determine_R_T(Points3D, RotMatrices, TransMatrices):
 
      Threshold_Count = int(Points3D[0].shape[1]/2)
 
-     index = np.intersect1d(np.where(FirstCount>Threshold_Count), np.where(SecondCount > Threshold_Count))
+     index = np.intersect1d(np.where(FirstCount>Threshold_Count), np.where(SecondCount > Threshold_Count)) #Index the R and T with most positive Zs.
 
      True_Rot = RotMatrices[index[0]]
      True_Trans = TransMatrices[index[0]]
@@ -224,11 +227,11 @@ def Determine_R_T(Points3D, RotMatrices, TransMatrices):
 
 ##----------------------Defining my Rectification Pipeline-----------------------------------##
 
-def GenerateXPoint(Line,Y):
+def GenerateXPoint(Line,Y): #Generates an X point given a line equation and a Y value.
      x = -(Line[1]*Y + Line[2])/Line[0]
      return x
 
-def ResizeImages(Images):
+def ResizeImages(Images): #This function will resize the resultant image to be the same size as the larger of the two.
      images = Images.copy()
      sizes = []
      for image in images:
@@ -247,6 +250,7 @@ def ResizeImages(Images):
 
      return resized_images
 
+
 def GenerateEpipolarLines(FirstSetPoints, SecondSetPoints, F, FirstImage, SecondImage, rectified = False):
      Lines1 = []
      Lines2 = []
@@ -254,19 +258,19 @@ def GenerateEpipolarLines(FirstSetPoints, SecondSetPoints, F, FirstImage, Second
      EpiImage1 = FirstImage.copy()
      EpiImage2 = SecondImage.copy()
 
-     for i in range(FirstSetPoints.shape[0]):
+     for i in range(FirstSetPoints.shape[0]): #Take slelected features from RANSAC
           X1 = np.array([FirstSetPoints[i,0],FirstSetPoints[i,1],1]).reshape(3,1)
           X2 = np.array([SecondSetPoints[i,0],SecondSetPoints[i,1], 1]).reshape(3,1)
 
 
 
-          Line2 = np.dot(F, X1)
+          Line2 = np.dot(F, X1) #Form Line 2
           Lines2.append(Line2)
 
-          Line1 = np.dot(F.T, X2)
+          Line1 = np.dot(F.T, X2) #Form Line 1
           Lines1.append(Line1)
 
-          if not rectified:
+          if not rectified: #How to generate the "start" and "end" points for an unrectified image.
                Y2_Minimum = 0
                Y2_Max = SecondImage.shape[0]
                X2_Minimum = GenerateXPoint(Line2, Y2_Minimum)
@@ -277,7 +281,7 @@ def GenerateEpipolarLines(FirstSetPoints, SecondSetPoints, F, FirstImage, Second
                X1_Minimum = GenerateXPoint(Line1, Y1_Minimum)
                X1_Max = GenerateXPoint(Line1, Y1_Max)
 
-          else:
+          else: #How to generate the "start" and "end" points for a rectified image.
                X2_Minimum = 0
                X2_Max = SecondImage.shape[1] - 1
                Y2_Minimum = -Line2[2]/Line2[1]
@@ -288,17 +292,17 @@ def GenerateEpipolarLines(FirstSetPoints, SecondSetPoints, F, FirstImage, Second
                Y1_Minimum = -Line1[2]/Line1[1]
                Y1_Max = -Line1[2]/Line1[1]
 
-
-          cv.circle(EpiImage2, (int(SecondSetPoints[i,0]),int(SecondSetPoints[i,1])), 8, (255,0,0), -1)
-          EpiImage2 = cv.line(EpiImage2, (int(X2_Minimum), int(Y2_Minimum)), (int(X2_Max), int(Y2_Max)), (255,0,int(i*2.55)),2)
-
-          cv.circle(EpiImage1, (int(FirstSetPoints[i,0]),int(FirstSetPoints[i,1])), 8, (255,0,0), -1)
-          EpiImage1 = cv.line(EpiImage1, (int(X1_Minimum), int(Y1_Minimum)), (int(X1_Max), int(Y1_Max)), (255,0,int(i*2.55)),2)
+          
+          cv.circle(EpiImage2, (int(SecondSetPoints[i,0]),int(SecondSetPoints[i,1])), 8, (255,0,0), -1)#Draw Circle at features
+          EpiImage2 = cv.line(EpiImage2, (int(X2_Minimum), int(Y2_Minimum)), (int(X2_Max), int(Y2_Max)), (255,0,int(i*2.55)),2) #Draw Epipolar Line
+          
+          cv.circle(EpiImage1, (int(FirstSetPoints[i,0]),int(FirstSetPoints[i,1])), 8, (255,0,0), -1) #Draw Circle at features
+          EpiImage1 = cv.line(EpiImage1, (int(X1_Minimum), int(Y1_Minimum)), (int(X1_Max), int(Y1_Max)), (255,0,int(i*2.55)),2) #Draw Epipolar Line
 
      Image1, Image2 = ResizeImages([EpiImage1, EpiImage2])
 
      concat = np.concatenate((Image1, Image2), axis = 1)
-     concat = cv.resize(concat, (1920,660))
+     concat = cv.resize(concat, (1920,660)) #Merge Images
 
      return Lines1, Lines2, concat
 
@@ -306,20 +310,20 @@ def SolveRectification(Image1, Image2, FeatureSet1, FeatureSet2, F):
      imheight1, imwidth1 = Image1.shape[:2]
      imheight2, imwidth2 = Image2.shape[:2]
 
-     _, H1, H2 = cv.stereoRectifyUncalibrated(np.float32(FeatureSet1), np.float32(FeatureSet2), F, imgSize=(imheight1,imwidth1))
+     _, H1, H2 = cv.stereoRectifyUncalibrated(np.float32(FeatureSet1), np.float32(FeatureSet2), F, imgSize=(imheight1,imwidth1)) #Get Homography to make EP lines parallel
      print("\n H1 is: \n", H1)
      print("\n H2 is: \n", H2)
 
-     Image1_Rect = cv.warpPerspective(Image1, H1, (imheight1,imwidth1))
+     Image1_Rect = cv.warpPerspective(Image1, H1, (imheight1,imwidth1)) #Warp the images by H1 and H2
      Image2_Rect = cv.warpPerspective(Image2, H2, (imheight2, imwidth2))
 
-     FeatureSet1_Rect = cv.perspectiveTransform(FeatureSet1.reshape(-1,1,2),H1).reshape(-1,2)
+     FeatureSet1_Rect = cv.perspectiveTransform(FeatureSet1.reshape(-1,1,2),H1).reshape(-1,2) #Warp feature data by H1 and H2
      FeatureSet2_Rect = cv.perspectiveTransform(FeatureSet2.reshape(-1,1,2),H2).reshape(-1,2)
 
      H2_T_Inverse = np.linalg.inv(H2.T)
      H1_Inverse = np.linalg.inv(H1)
 
-     F_Rect = np.dot(H2_T_Inverse, np.dot(F, H1_Inverse))
+     F_Rect = np.dot(H2_T_Inverse, np.dot(F, H1_Inverse)) #Warp F based on H1 and H2 to regenerate EP lines.
 
      return Image1_Rect, Image2_Rect, FeatureSet1_Rect, FeatureSet2_Rect, F_Rect
 
@@ -327,16 +331,16 @@ def SolveRectification(Image1, Image2, FeatureSet1, FeatureSet2, F):
 def SolveCorrespondance(RectIM1, RectIM2):
      GrayIM1 = cv.cvtColor(RectIM1, cv.COLOR_BGR2GRAY)
      GrayIM2 = cv.cvtColor(RectIM2, cv.COLOR_BGR2GRAY)
-     window_size = 15
+     window_size = 15 #Window Size of 15. Less Detail, Less Noise
      block = 5
 
      IMHeight, IMWidth = GrayIM1.shape
-     disparity_image = np.zeros(shape = (IMHeight, IMWidth))
+     disparity_image = np.zeros(shape = (IMHeight, IMWidth)) #Initialize Disparity Image
 
 
 
      start = timeit.default_timer()
-
+     # For every x and y, calculate ssd between image 1 and image 2.
      for i in range(block, GrayIM1.shape[0] - block - 1):
           for j in range(block + window_size, GrayIM1.shape[1] - block - 1):
                ssd = np.empty([window_size,1])
@@ -352,10 +356,10 @@ def SolveCorrespondance(RectIM1, RectIM2):
      return disparity_image, ssd
 
 ##----------------------Defining my Depth Computation Pipeline-----------------------------------##
-def GenerateDepthInfo(RectImage1, Disparity_Info):
+def GenerateDepthInfo(RectImage1, Disparity_Info): #Generates the depth information to be displayed.
      GrayIM1 = cv.cvtColor(RectImage1, cv.COLOR_BGR2GRAY)
      depth_info = np.zeros(shape = GrayIM1.shape).astype(float)
-     depth_info[Disparity_Info > 0] = (focal_length*baseline) / (Disparity_Info[Disparity_Info > 0])
+     depth_info[Disparity_Info > 0] = (focal_length*baseline) / (Disparity_Info[Disparity_Info > 0]) 
 
      img_depth = ((depth_info/depth_info.max())*255).astype(np.uint8)
 
