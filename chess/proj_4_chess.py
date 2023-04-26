@@ -456,13 +456,13 @@ FirstSet = BestFeatures[:,0:2]
 SecondSet = BestFeatures[:,2:4]
 
 Lines1, Lines2, unrec = GenerateEpipolarLines(FirstSet, SecondSet, F_Matrix, OG_Image_0, OG_Image_1, False)
-plt.imshow(unrec)
+plt.imshow(cv.cvtColor(unrec,cv.COLOR_BGR2RGB))
 plt.show()
 
 Image1_Rect, Image2_Rect, FeatureSet1_Rect, FeatureSet2_Rect, F_Rect = SolveRectification(OG_Image_0, OG_Image_1, FirstSet, SecondSet,F_Matrix)
 
 Lines1_Rect, Lines2_Rect, Rec = GenerateEpipolarLines(FeatureSet1_Rect, FeatureSet2_Rect, F_Rect, Image1_Rect, Image2_Rect, True)
-plt.imshow(Rec)
+plt.imshow(cv.cvtColor(Rec,cv.COLOR_BGR2RGB))
 plt.show()
 
 ##----------------------------Solving Correspondance and Disparity-----------------------------##
